@@ -1,0 +1,27 @@
+{
+  "name": "opt-handler",
+  "version": "1.0.0",
+  "description": "Javascript/Typescript command line argument handler (getopt-like), designed to be more type-friendly",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jj101k/opt-handler.git"
+  },
+  "keywords": [
+    "getopt",
+    "cli"
+  ],
+  "author": "Jim Driscoll <jim.a.driscoll@gmail.com>",
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/jj101k/opt-handler/issues"
+  },
+  "homepage": "https://github.com/jj101k/opt-handler#readme",
+  "devDependencies": {
+    "@types/node": "^20.11.22",
+    "typescript": "^5.3.3"
+  }
+}
