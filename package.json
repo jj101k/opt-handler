@@ -2,8 +2,9 @@
   "name": "opt-handler",
   "version": "1.0.0",
   "description": "Javascript/Typescript command line argument handler (getopt-like), designed to be more type-friendly",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
+    "prepare": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
