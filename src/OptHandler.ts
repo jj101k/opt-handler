@@ -3,9 +3,11 @@ import { LiteralArgument } from "./LiteralArgument"
 import { LongOption } from "./LongOption"
 import { NodeProcessLike } from "./NodeProcessLike"
 import { OptError } from "./OptError"
+import { OptErrorCode } from "./OptErrorCode"
 import { OptExit } from "./OptExit"
 import { OptHandlerOptions } from "./OptHandlerOptions"
 import { OptHelpExit } from "./OptHelpExit"
+import { OptValues } from "./OptValues"
 import { OptWrapper } from "./OptWrapper"
 import { Opts } from "./Opts"
 import { ShortOptions } from "./ShortOptions"
@@ -18,7 +20,7 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
      *
      * @param options
      */
-    public static assertValidOptions(options: OptHandlerOptions<Record<string, OptWrapper>, Record<string, OptWrapper>>): void {
+    public static assertValidOptions<O extends Record<string, OptWrapper>, P extends Record<string, OptWrapper>>(options: OptHandlerOptions<O, P>): void {
         let seenVariablePositional = false
         let seenMultiPositional = false
         for (const v of Object.values(options.positional)) {
@@ -35,6 +37,11 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
             }
         }
     }
+    /**
+     *
+     */
+    private conditions?: Record<string, (opts: OptValues<O, P>) => boolean>
+
     /**
      *
      */
@@ -65,20 +72,20 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
         const getExplicitValueOrThrow = () => {
             const value = getExplicitValue()
             if (value === undefined) {
-                throw new OptError(`Error: Option ${key} required an argument`, 7)
+                throw new OptError(`Error: Option ${key} required an argument`, OptErrorCode.valueRequired)
             }
             return value
         }
         switch (opt.type) {
             case "boolean":
                 if (value !== undefined) {
-                    throw new OptError(`Error: Argument supplied for boolean option ${key}`, 6)
+                    throw new OptError(`Error: Argument supplied for boolean option ${key}`, OptErrorCode.noValuePermitted)
                 }
                 return true
             case "number": {
                 const v = value ?? getExplicitValueOrThrow()
                 if (Number.isNaN(v)) {
-                    throw new OptError(`Error: Argument must be numeric for ${key}`, 6)
+                    throw new OptError(`Error: Argument must be numeric for ${key}`, OptErrorCode.invalidValue)
                 }
                 return +v
             }
@@ -102,11 +109,11 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
                 } else if (value.match(/^(1|true)$/)) {
                     return true
                 } else {
-                    throw new OptError(`Error: Only 0, 1, true or false are supported for boolean ${key} (${value})`, 9)
+                    throw new OptError(`Error: Only 0, 1, true or false are supported for boolean ${key} (${value})`, OptErrorCode.invalidValue)
                 }
             case "number": {
                 if (Number.isNaN(value)) {
-                    throw new OptError(`Error: Argument must be numeric for ${key}`, 6)
+                    throw new OptError(`Error: Argument must be numeric for ${key}`, OptErrorCode.invalidValue)
                 }
                 return +value
             }
@@ -196,6 +203,7 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
      */
     constructor(options: OptHandlerOptions<O, P>, private name: string) {
         OptHandler.assertValidOptions(options)
+        this.conditions = options.conditions
         this.helpOption = options.help
         this.options = options.options
         this.positional = options.positional
@@ -235,7 +243,7 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
      * @param args
      * @returns
      */
-    fromProgramArgs(args: string[]): { [k in keyof O]: O[k]["initialValue"] } & { [k in keyof P]: P[k]["initialValue"] } {
+    fromProgramArgs(args: string[]): OptValues<O, P> {
         const knownShortOpts: Record<string, { canonicalName: string, opt: OptWrapper }> = {}
         for (const [k, v] of Object.entries(this.options)) {
             const config = { canonicalName: k, opt: v }
@@ -260,7 +268,7 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
                 const cName = cNames[parsed.key]
                 const opt = this.options[cName]
                 if (!opt) {
-                    throw new OptError(`Error: Unrecognised long option ${parsed.key}`, 5)
+                    throw new OptError(`Error: Unrecognised long option ${parsed.key}`, OptErrorCode.unrecognised)
                 }
                 opts.addOptArg(cName, this.getArgValue(parsed.key, opt, () => mArgs.shift(), parsed.value))
             } else if (parsed instanceof ShortOptions) {
@@ -269,7 +277,7 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
                 while (optionCode = parsed.next()) {
                     const config = knownShortOpts[optionCode]
                     if (!config) {
-                        throw new OptError(`Error: Unrecognised short option ${parsed.prevOption} in ${parsed.literalArgument}`, 3)
+                        throw new OptError(`Error: Unrecognised short option ${parsed.prevOption} in ${parsed.literalArgument}`, OptErrorCode.unrecognised)
                     }
                     const cName = config.canonicalName
                     opts.addOptArg(cName, this.getArgValue(parsed.prevOption!, config.opt, () => parsed.rest.length ? parsed.rest : mArgs.shift()))
@@ -288,10 +296,6 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
             throw new OptHelpExit(this.helpMessage)
         }
 
-        if(Object.values(this.positional).some(opt => opt.many)) {
-
-        }
-
         const seen = new Set<string>()
 
         // Careful ordering here to support having variable items in the middle.
@@ -303,7 +307,7 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
             seen.add(name)
             const v = positional.shift()
             if (v === undefined) {
-                throw new OptError(`Argument <${name}> is required.\n${this.helpMessage}`, 1)
+                throw new OptError(`Argument <${name}> is required.\n${this.helpMessage}`, OptErrorCode.required)
             }
             opts.addPositionArg(name, this.getPositionArgValue(name, opt, v))
         }
@@ -319,7 +323,7 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
             seen.add(name)
             const v = positional.pop()
             if (v === undefined) {
-                throw new OptError(`Argument <${name}> is required.\n${this.helpMessage}`, 1)
+                throw new OptError(`Argument <${name}> is required.\n${this.helpMessage}`, OptErrorCode.required)
             }
             opts.addPositionArg(name, this.getPositionArgValue(name, opt, v))
         }
@@ -331,7 +335,7 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
             }
             const v = positional.shift()
             if (v === undefined && opt.required) {
-                throw new OptError(`Argument <${name}> is required.\n${this.helpMessage}`, 1)
+                throw new OptError(`Argument <${name}> is required.\n${this.helpMessage}`, OptErrorCode.required)
             }
             if (v !== undefined) {
                 opts.addPositionArg(name, this.getPositionArgValue(name, opt, v))
@@ -345,9 +349,20 @@ export class OptHandler<O extends Record<string, OptWrapper>, P extends Record<s
         }
 
         if (positional.length) {
-            throw new OptError(`Too many arguments at: ${positional[0]}.\n${this.helpMessage}`, 2)
+            throw new OptError(`Too many arguments at: ${positional[0]}.\n${this.helpMessage}`, OptErrorCode.unrecognised)
         }
 
-        return opts.values
+        const values = opts.values
+        if(this.conditions) {
+            let code = 64 // Higher than highest value in OptErrorCode
+            for(const [name, test] of Object.entries(this.conditions)) {
+                if(!test(values)) {
+                    throw new OptError(`Condition failed: ${name}.\n${this.helpMessage}`, code)
+                }
+                code++
+            }
+        }
+
+        return values
     }
 }

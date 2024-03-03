@@ -1,3 +1,4 @@
+import { OptValues } from "./OptValues"
 import { OptWrapper } from "./OptWrapper"
 
 /**
@@ -17,7 +18,7 @@ export class Opts<O extends Record<string, OptWrapper>, P extends Record<string,
      *
      */
     get values() {
-        return {...this.optValues, ...this.posValues} as {[k in keyof O]: O[k]["initialValue"]} & {[k in keyof P]: P[k]["initialValue"]}
+        return {...this.optValues, ...this.posValues} as OptValues<O, P>
     }
 
     /**

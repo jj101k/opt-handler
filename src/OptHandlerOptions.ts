@@ -1,9 +1,16 @@
+import { OptValues } from "./OptValues"
 import { OptWrapper } from "./OptWrapper"
+import { Opts } from "./Opts"
 
 /**
  *
  */
 export interface OptHandlerOptions<O extends Record<string, OptWrapper>, P extends Record<string, OptWrapper>> {
+    /**
+     * Extra conditions which apply to your parsing rules. The key will be
+     * included in the error output.
+     */
+    conditions?: Record<string, (opts: OptValues<O, P>) => boolean>
     /**
      * The options to use. This will automatically translate keys like fooBar to
      * --foo-bar, as well as fooBARBaz to --foo-bar-baz
